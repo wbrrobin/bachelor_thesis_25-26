@@ -27,10 +27,14 @@
  */
 package tau.smlab.syntech.generator;
 
+import com.google.common.collect.Iterators;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.xtext.generator.AbstractGenerator;
 import org.eclipse.xtext.generator.IFileSystemAccess2;
 import org.eclipse.xtext.generator.IGeneratorContext;
+import org.eclipse.xtext.xbase.lib.Functions.Function1;
+import org.eclipse.xtext.xbase.lib.IteratorExtensions;
+import tau.smlab.syntech.spectra.Model;
 
 /**
  * Generates code from your model files on save.
@@ -41,5 +45,11 @@ import org.eclipse.xtext.generator.IGeneratorContext;
 public class SpectraGenerator extends AbstractGenerator {
   @Override
   public void doGenerate(final Resource resource, final IFileSystemAccess2 fsa, final IGeneratorContext context) {
+    final Function1<Model, String> _function = (Model it) -> {
+      return it.getName();
+    };
+    String _join = IteratorExtensions.join(IteratorExtensions.<Model, String>map(Iterators.<Model>filter(resource.getAllContents(), Model.class), _function), ", ");
+    String _plus = ("People to greet: " + _join);
+    fsa.generateFile("greetings.txt", _plus);
   }
 }

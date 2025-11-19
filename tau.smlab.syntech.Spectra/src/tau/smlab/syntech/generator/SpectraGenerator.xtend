@@ -45,10 +45,10 @@ import tau.smlab.syntech.spectra.Model
 class SpectraGenerator extends AbstractGenerator {
 
 	override void doGenerate(Resource resource, IFileSystemAccess2 fsa, IGeneratorContext context) {
-//		fsa.generateFile('greetings.txt', 'People to greet: ' + 
-//			resource.allContents
-//				.filter(typeof(Model))
-//				.map[name]
-//				.join(', '))
+		fsa.generateFile('greetings.txt', 'People to greet: ' + 
+			resource.allContents
+				.filter(typeof(Model))
+				.map[name]
+				.join(', '))
 	}
 }
