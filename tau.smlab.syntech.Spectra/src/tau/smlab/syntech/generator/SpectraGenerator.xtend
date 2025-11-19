@@ -35,7 +35,6 @@ import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.generator.AbstractGenerator
 import org.eclipse.xtext.generator.IFileSystemAccess2
 import org.eclipse.xtext.generator.IGeneratorContext
-import tau.smlab.syntech.spectra.Model
 
 /**
  * Generates code from your model files on save.
@@ -43,12 +42,14 @@ import tau.smlab.syntech.spectra.Model
  * See https://www.eclipse.org/Xtext/documentation/303_runtime_concepts.html#code-generation
  */
 class SpectraGenerator extends AbstractGenerator {
+	
+	val generators = #[
+		new BPpyGenerator
+	]
 
 	override void doGenerate(Resource resource, IFileSystemAccess2 fsa, IGeneratorContext context) {
-		fsa.generateFile('greetings.txt', 'People to greet: ' + 
-			resource.allContents
-				.filter(typeof(Model))
-				.map[name]
-				.join(', '))
+		for (generator : generators) {
+			generator.doGenerate(resource, fsa, context)
+		}
 	}
 }
