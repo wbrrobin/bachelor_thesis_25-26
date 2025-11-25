@@ -15,6 +15,7 @@ import org.eclipse.xtext.xbase.lib.IteratorExtensions;
 import org.eclipse.xtext.xbase.lib.ListExtensions;
 import org.eclipse.xtext.xbase.lib.StringExtensions;
 import tau.smlab.syntech.spectra.Model;
+import tau.smlab.syntech.spectra.SizeDefineDecl;
 import tau.smlab.syntech.spectra.Subrange;
 import tau.smlab.syntech.spectra.TypeConstant;
 import tau.smlab.syntech.spectra.Var;
@@ -56,14 +57,14 @@ public class BPpyGenerator extends AbstractGenerator {
     boolean _equals = Objects.equal(_name, "boolean");
     if (_equals) {
       _matched=true;
-      _switchResult = (((name + " = Bool(\'") + name) + "\')");
+      _switchResult = this.getVarDeclaration(name, "Bool", type.getDimensions());
     }
     if (!_matched) {
       Subrange _subr = type.getSubr();
       boolean _tripleNotEquals = (_subr != null);
       if (_tripleNotEquals) {
         _matched=true;
-        _switchResult = this.addInt(type.getSubr(), name);
+        _switchResult = this.addInt(type, name);
       }
     }
     if (!_matched) {
@@ -71,18 +72,41 @@ public class BPpyGenerator extends AbstractGenerator {
       boolean _tripleNotEquals_1 = (_const != null);
       if (_tripleNotEquals_1) {
         _matched=true;
-        _switchResult = this.addEnum(type.getConst(), name);
+        _switchResult = this.addEnum(type, name);
       }
     }
     return _switchResult;
   }
 
-  public CharSequence addInt(final Subrange subr, final String name) {
+  public String getVarDeclaration(final String varName, final String typeName, final EList<SizeDefineDecl> dimensions) {
+    final StringBuilder prefix = new StringBuilder();
+    final StringBuilder elemName = new StringBuilder(varName);
+    final StringBuilder postfix = new StringBuilder();
+    for (int dim = 0; (dim < dimensions.size()); dim++) {
+      {
+        prefix.append("[");
+        elemName.append((("_{i" + Integer.valueOf(dim)) + "}"));
+        int _value = dimensions.get(dim).getValue();
+        String _plus = (((" for i" + Integer.valueOf(dim)) + " in range(") + Integer.valueOf(_value));
+        String _plus_1 = (_plus + ")]");
+        postfix.insert(0, _plus_1);
+      }
+    }
+    String _string = prefix.toString();
+    String _plus = ((varName + " = ") + _string);
+    String _plus_1 = (_plus + typeName);
+    String _plus_2 = (_plus_1 + "(f\'");
+    String _string_1 = elemName.toString();
+    String _plus_3 = (_plus_2 + _string_1);
+    String _plus_4 = (_plus_3 + "\')");
+    String _string_2 = postfix.toString();
+    return (_plus_4 + _string_2);
+  }
+
+  public CharSequence addInt(final VarType type, final String name) {
     StringConcatenation _builder = new StringConcatenation();
-    _builder.append(name);
-    _builder.append(" = Int(\'");
-    _builder.append(name);
-    _builder.append("\')");
+    String _varDeclaration = this.getVarDeclaration(name, "Int", type.getDimensions());
+    _builder.append(_varDeclaration);
     _builder.newLineIfNotEmpty();
     _builder.newLine();
     _builder.append("@thread");
@@ -95,19 +119,21 @@ public class BPpyGenerator extends AbstractGenerator {
     _builder.append("yield sync(block=Or(");
     _builder.append(name, "\t");
     _builder.append(" < ");
-    int _value = subr.getFrom().getValue();
+    int _value = type.getSubr().getFrom().getValue();
     _builder.append(_value, "\t");
     _builder.append(", ");
     _builder.append(name, "\t");
     _builder.append(" > ");
-    int _value_1 = subr.getTo().getValue();
+    int _value_1 = type.getSubr().getTo().getValue();
     _builder.append(_value_1, "\t");
     _builder.append("))");
     _builder.newLineIfNotEmpty();
+    _builder.append("\t");
+    _builder.newLine();
     return _builder;
   }
 
-  public CharSequence addEnum(final EList<TypeConstant> constants, final String name) {
+  public CharSequence addEnum(final VarType type, final String name) {
     StringConcatenation _builder = new StringConcatenation();
     String _firstUpper = StringExtensions.toFirstUpper(name);
     _builder.append(_firstUpper);
@@ -115,7 +141,7 @@ public class BPpyGenerator extends AbstractGenerator {
     final Function1<TypeConstant, String> _function = (TypeConstant it) -> {
       return StringExtensions.toFirstLower(it.getName());
     };
-    String _join = IterableExtensions.join(ListExtensions.<TypeConstant, String>map(constants, _function), ", ");
+    String _join = IterableExtensions.join(ListExtensions.<TypeConstant, String>map(type.getConst(), _function), ", ");
     _builder.append(_join);
     _builder.append(") \\");
     _builder.newLineIfNotEmpty();
@@ -129,7 +155,7 @@ public class BPpyGenerator extends AbstractGenerator {
       String _plus = ("\'" + _name);
       return (_plus + "\'");
     };
-    String _join_1 = IterableExtensions.join(ListExtensions.<TypeConstant, String>map(constants, _function_1), ", ");
+    String _join_1 = IterableExtensions.join(ListExtensions.<TypeConstant, String>map(type.getConst(), _function_1), ", ");
     _builder.append(_join_1, "\t");
     _builder.append("))");
     _builder.newLineIfNotEmpty();
@@ -141,6 +167,10 @@ public class BPpyGenerator extends AbstractGenerator {
     _builder.append(_firstUpper_2);
     _builder.append(")");
     _builder.newLineIfNotEmpty();
+    String _varDeclaration = this.getVarDeclaration(name, "Const", type.getDimensions());
+    _builder.append(_varDeclaration);
+    _builder.newLineIfNotEmpty();
+    _builder.newLine();
     return _builder;
   }
 }
