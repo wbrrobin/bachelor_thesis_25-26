@@ -38,6 +38,8 @@ public class BPpyGenerator extends AbstractGenerator {
     StringConcatenation _builder = new StringConcatenation();
     _builder.append("from bppy import *");
     _builder.newLine();
+    _builder.append("import numpy as np");
+    _builder.newLine();
     _builder.newLine();
     {
       Iterable<Var> _filter = Iterables.<Var>filter(model.getElements(), Var.class);
@@ -79,6 +81,20 @@ public class BPpyGenerator extends AbstractGenerator {
   }
 
   public String getVarDeclaration(final String varName, final String typeName, final EList<SizeDefineDecl> dimensions) {
+    int _size = dimensions.size();
+    final boolean isArray = (_size != 0);
+    final boolean isEnum = Objects.equal(typeName, "Const");
+    String _xifexpression = null;
+    if (isEnum) {
+      String _firstUpper = StringExtensions.toFirstUpper(varName);
+      _xifexpression = (", " + _firstUpper);
+    } else {
+      _xifexpression = "";
+    }
+    final String secondArgument = _xifexpression;
+    if ((!isArray)) {
+      return new StringBuilder(varName).append(" = ").append(typeName).append("(\'").append(varName).append("\'").append(secondArgument).append(")").toString();
+    }
     final StringBuilder prefix = new StringBuilder();
     final StringBuilder elemName = new StringBuilder(varName);
     final StringBuilder postfix = new StringBuilder();
@@ -92,15 +108,7 @@ public class BPpyGenerator extends AbstractGenerator {
         postfix.insert(0, _plus_1);
       }
     }
-    String _string = prefix.toString();
-    String _plus = ((varName + " = ") + _string);
-    String _plus_1 = (_plus + typeName);
-    String _plus_2 = (_plus_1 + "(f\'");
-    String _string_1 = elemName.toString();
-    String _plus_3 = (_plus_2 + _string_1);
-    String _plus_4 = (_plus_3 + "\')");
-    String _string_2 = postfix.toString();
-    return (_plus_4 + _string_2);
+    return new StringBuilder(varName).append(" = ").append(prefix.toString()).append(typeName).append("(f\'").append(elemName.toString()).append("\'").append(secondArgument).append(")").append(postfix.toString()).toString();
   }
 
   public CharSequence addInt(final VarType type, final String name) {
@@ -113,22 +121,43 @@ public class BPpyGenerator extends AbstractGenerator {
     _builder.newLine();
     _builder.append("def ");
     _builder.append(name);
-    _builder.append("Bounds():");
+    _builder.append("_bounds():");
     _builder.newLineIfNotEmpty();
     _builder.append("\t");
-    _builder.append("yield sync(block=Or(");
-    _builder.append(name, "\t");
-    _builder.append(" < ");
+    _builder.append("lower = ");
     int _value = type.getSubr().getFrom().getValue();
     _builder.append(_value, "\t");
-    _builder.append(", ");
-    _builder.append(name, "\t");
-    _builder.append(" > ");
-    int _value_1 = type.getSubr().getTo().getValue();
-    _builder.append(_value_1, "\t");
-    _builder.append("))");
     _builder.newLineIfNotEmpty();
     _builder.append("\t");
+    _builder.append("upper = ");
+    int _value_1 = type.getSubr().getTo().getValue();
+    _builder.append(_value_1, "\t");
+    _builder.newLineIfNotEmpty();
+    {
+      int _size = type.getDimensions().size();
+      boolean _equals = (_size == 0);
+      if (_equals) {
+        _builder.append("\t");
+        _builder.append("block_condition = Or(");
+        _builder.append(name, "\t");
+        _builder.append(" < lower, ");
+        _builder.append(name, "\t");
+        _builder.append(" > upper)");
+        _builder.newLineIfNotEmpty();
+      } else {
+        _builder.append("\t");
+        _builder.append("flat_array = np.array(");
+        _builder.append(name, "\t");
+        _builder.append(").flatten()");
+        _builder.newLineIfNotEmpty();
+        _builder.append("\t");
+        _builder.append("block_condition = Or(*[Or(elem < lower, elem > upper) for elem in flat_array])");
+        _builder.newLine();
+      }
+    }
+    _builder.append("\t");
+    _builder.append("yield sync(block=block_condition)");
+    _builder.newLine();
     _builder.newLine();
     return _builder;
   }
@@ -159,18 +188,9 @@ public class BPpyGenerator extends AbstractGenerator {
     _builder.append(_join_1, "\t");
     _builder.append("))");
     _builder.newLineIfNotEmpty();
-    _builder.append(name);
-    _builder.append(" = Const(\'");
-    _builder.append(name);
-    _builder.append("\', ");
-    String _firstUpper_2 = StringExtensions.toFirstUpper(name);
-    _builder.append(_firstUpper_2);
-    _builder.append(")");
-    _builder.newLineIfNotEmpty();
     String _varDeclaration = this.getVarDeclaration(name, "Const", type.getDimensions());
     _builder.append(_varDeclaration);
     _builder.newLineIfNotEmpty();
-    _builder.newLine();
     return _builder;
   }
 }
