@@ -3,6 +3,7 @@ package tau.smlab.syntech.generator;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import java.util.ArrayList;
 import java.util.Arrays;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.ecore.resource.Resource;
@@ -10,14 +11,17 @@ import org.eclipse.xtend2.lib.StringConcatenation;
 import org.eclipse.xtext.generator.AbstractGenerator;
 import org.eclipse.xtext.generator.IFileSystemAccess2;
 import org.eclipse.xtext.generator.IGeneratorContext;
+import org.eclipse.xtext.xbase.lib.CollectionLiterals;
 import org.eclipse.xtext.xbase.lib.ExclusiveRange;
 import org.eclipse.xtext.xbase.lib.Functions.Function1;
+import org.eclipse.xtext.xbase.lib.IntegerRange;
 import org.eclipse.xtext.xbase.lib.IterableExtensions;
 import org.eclipse.xtext.xbase.lib.IteratorExtensions;
 import org.eclipse.xtext.xbase.lib.ListExtensions;
 import org.eclipse.xtext.xbase.lib.StringExtensions;
 import tau.smlab.syntech.spectra.Constant;
 import tau.smlab.syntech.spectra.Define;
+import tau.smlab.syntech.spectra.DefineArray;
 import tau.smlab.syntech.spectra.DefineDecl;
 import tau.smlab.syntech.spectra.Model;
 import tau.smlab.syntech.spectra.QuantifierExpr;
@@ -39,6 +43,7 @@ import tau.smlab.syntech.spectra.TemporalRemainderExpr;
 import tau.smlab.syntech.spectra.TemporalUnaryExpr;
 import tau.smlab.syntech.spectra.TypeConstant;
 import tau.smlab.syntech.spectra.TypeDef;
+import tau.smlab.syntech.spectra.ValueInRange;
 import tau.smlab.syntech.spectra.Var;
 import tau.smlab.syntech.spectra.VarType;
 
@@ -106,18 +111,36 @@ public class BPpyGenerator extends AbstractGenerator {
   }
 
   public String compile(final DefineDecl defineDecl) {
-    Object _xifexpression = null;
+    String _name = defineDecl.getName();
+    String _plus = (_name + " = ");
+    String _xifexpression = null;
     TemporalExpression _simpleExpr = defineDecl.getSimpleExpr();
     boolean _tripleNotEquals = (_simpleExpr != null);
     if (_tripleNotEquals) {
-      String _name = defineDecl.getName();
-      String _plus = (_name + " = ");
-      String _translateTempExpr = this.translateTempExpr(defineDecl.getSimpleExpr());
-      return (_plus + _translateTempExpr);
+      _xifexpression = this.translateTempExpr(defineDecl.getSimpleExpr());
     } else {
-      _xifexpression = null;
+      _xifexpression = this.compile(defineDecl.getInnerArray());
     }
-    return ((String)_xifexpression);
+    return (_plus + _xifexpression);
+  }
+
+  public String compile(final DefineArray defineArray) {
+    boolean _isEmpty = defineArray.getSimpleExprs().isEmpty();
+    boolean _not = (!_isEmpty);
+    if (_not) {
+      final Function1<TemporalExpression, String> _function = (TemporalExpression it) -> {
+        return this.translateTempExpr(it);
+      };
+      String _join = IterableExtensions.join(ListExtensions.<TemporalExpression, String>map(defineArray.getSimpleExprs(), _function), ", ");
+      String _plus = ("[" + _join);
+      return (_plus + "]");
+    }
+    final Function1<DefineArray, String> _function_1 = (DefineArray it) -> {
+      return this.compile(it);
+    };
+    String _join_1 = IterableExtensions.join(ListExtensions.<DefineArray, String>map(defineArray.getInnerArrays(), _function_1), ", ");
+    String _plus_1 = ("[" + _join_1);
+    return (_plus_1 + "]");
   }
 
   protected String _translateTempExpr(final TemporalExpression expr) {
@@ -129,7 +152,65 @@ public class BPpyGenerator extends AbstractGenerator {
   }
 
   protected String _translateTempExpr(final TemporalInExpr expr) {
-    return null;
+    final String left = this.translateTempExpr(expr.getLeft());
+    final ArrayList<Object> constraints = CollectionLiterals.<Object>newArrayList();
+    EList<ValueInRange> _values = expr.getValues();
+    for (final ValueInRange valueInRange : _values) {
+      boolean _isMulti = valueInRange.isMulti();
+      if (_isMulti) {
+        final int from = valueInRange.getFrom();
+        final int to = valueInRange.getTo();
+        IntegerRange _upTo = new IntegerRange(from, to);
+        for (final Integer value : _upTo) {
+          constraints.add(((left + " == ") + value));
+        }
+      } else {
+        final String value_1 = this.compile(valueInRange);
+        constraints.add(((left + " == ") + value_1));
+      }
+    }
+    String result = IterableExtensions.join(constraints, ", ");
+    int _size = expr.getValues().size();
+    boolean _greaterThan = (_size > 1);
+    if (_greaterThan) {
+      result = (("Or(" + result) + ")");
+    }
+    String _xifexpression = null;
+    boolean _isNot = expr.isNot();
+    if (_isNot) {
+      _xifexpression = (("Not(" + result) + ")");
+    } else {
+      _xifexpression = result;
+    }
+    return _xifexpression;
+  }
+
+  public String compile(final ValueInRange value) {
+    String _switchResult = null;
+    boolean _matched = false;
+    TypeConstant _const = value.getConst();
+    boolean _tripleNotEquals = (_const != null);
+    if (_tripleNotEquals) {
+      _matched=true;
+      _switchResult = "";
+    }
+    if (!_matched) {
+      String _booleanValue = value.getBooleanValue();
+      boolean _tripleNotEquals_1 = (_booleanValue != null);
+      if (_tripleNotEquals_1) {
+        _matched=true;
+        _switchResult = value.getBooleanValue().toLowerCase();
+      }
+    }
+    if (!_matched) {
+      boolean _isMulti = value.isMulti();
+      boolean _not = (!_isMulti);
+      if (_not) {
+        _matched=true;
+        _switchResult = Integer.valueOf(value.getInt()).toString();
+      }
+    }
+    return _switchResult;
   }
 
   protected String _translateTempExpr(final TemporalImpExpr expr) {
@@ -249,30 +330,52 @@ public class BPpyGenerator extends AbstractGenerator {
   }
 
   protected String _translateTempExpr(final TemporalPrimaryExpr expr) {
-    String _operator = expr.getOperator();
-    boolean _tripleNotEquals = (_operator != null);
-    if (_tripleNotEquals) {
-      String _operator_1 = expr.getOperator();
-      String _translateTempExpr = this.translateTempExpr(expr);
-      return (_operator_1 + _translateTempExpr);
-    } else {
-      Referrable _pointer = expr.getPointer();
-      boolean _tripleNotEquals_1 = (_pointer != null);
-      if (_tripleNotEquals_1) {
-        return expr.getPointer().getName();
+    final String operator = expr.getOperator();
+    if (operator != null) {
+      switch (operator) {
+        case "-":
+          String _translateTempExpr = this.translateTempExpr(expr.getTpe());
+          return (operator + _translateTempExpr);
+        case "!":
+          String _translateTempExpr_1 = this.translateTempExpr(expr.getTpe());
+          String _plus = ("Not(" + _translateTempExpr_1);
+          return (_plus + ")");
+        case "next":
+          return "";
+        case "regexp":
+          return "";
+        case ".all":
+          return "";
+        case ".any":
+          return "";
+        case ".prod":
+          return "";
+        case ".sum":
+          return "";
+        case ".min":
+          return "";
+        case ".max":
+          return "";
       }
+    }
+    Referrable _pointer = expr.getPointer();
+    boolean _tripleNotEquals = (_pointer != null);
+    if (_tripleNotEquals) {
+      return expr.getPointer().getName();
     }
     return null;
   }
 
   protected String _translateTempExpr(final Constant expr) {
+    String _xifexpression = null;
     String _booleanValue = expr.getBooleanValue();
     boolean _tripleNotEquals = (_booleanValue != null);
     if (_tripleNotEquals) {
-      return expr.getBooleanValue().toLowerCase();
+      _xifexpression = expr.getBooleanValue().toLowerCase();
     } else {
-      return Integer.valueOf(expr.getIntegerValue()).toString();
+      _xifexpression = Integer.valueOf(expr.getIntegerValue()).toString();
     }
+    return _xifexpression;
   }
 
   public CharSequence compile(final TypeDef typeDef) {

@@ -1,5 +1,6 @@
 package tau.smlab.syntech.generator
 
+import java.util.List
 import org.eclipse.emf.common.util.EList
 import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.generator.AbstractGenerator
@@ -7,6 +8,7 @@ import org.eclipse.xtext.generator.IFileSystemAccess2
 import org.eclipse.xtext.generator.IGeneratorContext
 import tau.smlab.syntech.spectra.Constant
 import tau.smlab.syntech.spectra.Define
+import tau.smlab.syntech.spectra.DefineArray
 import tau.smlab.syntech.spectra.DefineDecl
 import tau.smlab.syntech.spectra.Model
 import tau.smlab.syntech.spectra.QuantifierExpr
@@ -26,6 +28,7 @@ import tau.smlab.syntech.spectra.TemporalRemainderExpr
 import tau.smlab.syntech.spectra.TemporalUnaryExpr
 import tau.smlab.syntech.spectra.TypeConstant
 import tau.smlab.syntech.spectra.TypeDef
+import tau.smlab.syntech.spectra.ValueInRange
 import tau.smlab.syntech.spectra.Var
 import tau.smlab.syntech.spectra.VarType
 
@@ -66,11 +69,19 @@ class BPpyGenerator extends AbstractGenerator {
 	'''
 	
 	def String compile(DefineDecl defineDecl) {
-		if (defineDecl.simpleExpr !== null) {
-			return defineDecl.name + " = " + defineDecl.simpleExpr.translateTempExpr
+		return defineDecl.name + " = " + if (defineDecl.simpleExpr !== null) {
+			defineDecl.simpleExpr.translateTempExpr
 		} else {
-			// TODO array define, z.B. define t[3] := {7, 8, 9};
+			defineDecl.innerArray.compile
 		}
+	}
+	
+	def String compile(DefineArray defineArray) {
+		if (!defineArray.simpleExprs.empty) {
+			return "[" + defineArray.simpleExprs.map[it.translateTempExpr].join(", ") + "]"
+		}
+		
+		return "[" + defineArray.innerArrays.map[it.compile].join(", ") + "]"
 	}
 	
 	def dispatch String translateTempExpr(TemporalExpression expr) {
@@ -82,7 +93,42 @@ class BPpyGenerator extends AbstractGenerator {
 	}
 	
 	def dispatch String translateTempExpr(TemporalInExpr expr) {
-		// TODO
+		val left = expr.left.translateTempExpr
+		
+		val constraints = newArrayList 
+		
+		for (valueInRange : expr.values) {
+			if (valueInRange.multi) {
+				// Value is a range (e.g. 5-7): Add a constraint for every possible number
+				val from = valueInRange.from
+				val to = valueInRange.to
+				for (value : from .. to) {
+					constraints.add(left + " == " + value)
+				}
+			} else {
+				val value = valueInRange.compile				
+				constraints.add(left + " == " + value)
+			}
+		}
+		
+		var result = constraints.join(", ")
+		if (expr.values.size > 1) {
+			result = "Or(" + result + ")"			
+		}
+		
+		return if (expr.not) {
+			"Not(" + result + ")"
+		} else {
+			result
+		}
+	}
+	
+	def String compile(ValueInRange value) {
+		return switch value {
+			case value.const !== null: "" // TODO TypeConstant
+			case value.booleanValue !== null: value.booleanValue.toLowerCase
+			case !value.multi: value.^int.toString
+		}
 	}
 	
 	def dispatch String translateTempExpr(TemporalImpExpr expr) {
@@ -104,7 +150,7 @@ class BPpyGenerator extends AbstractGenerator {
 			result = if (operator == "xor") {
 				buildString("Xor(", result, ", ", right, ")")
 			} else {
-				buildString("Or(", result, ", ", right, ")") // TODO: optimize - Or(a, b, c) instead of Or(Or(a, b), c)
+				buildString("Or(", result, ", ", right, ")") // TODO: optimize: Or(a, b, c) instead of Or(Or(a, b), c)
 			}
 		}
 		
@@ -173,20 +219,33 @@ class BPpyGenerator extends AbstractGenerator {
 	}
 	
 	def dispatch String translateTempExpr(TemporalPrimaryExpr expr) {
-		if (expr.operator !== null) {
-			return expr.operator + expr.translateTempExpr
-		} else if (expr.pointer !== null) {
-			return expr.pointer.name
+		// TODO: Predicate
+		
+		val operator = expr.operator
+		switch operator {
+			case "-": return operator + expr.tpe.translateTempExpr
+			case "!": return "Not(" + expr.tpe.translateTempExpr + ")"
+			case "next" : return "" // TODO
+			case "regexp" : return "" // TODO
+			case ".all" : return "" // TODO
+			case ".any" : return "" // TODO
+			case ".prod" : return "" // TODO
+			case ".sum" : return "" // TODO
+			case ".min" : return "" // TODO
+			case ".max" : return "" // TODO
 		}
 		
-		// TODO next, regexp, .all, .any, ...
+		if (expr.pointer !== null) {
+			return expr.pointer.name
+			// TODO pointer=[Referrable]('[' index+=TemporalInExpr ']')*
+		}
 	}
 	
 	def dispatch String translateTempExpr(Constant expr) {
-		if (expr.booleanValue !== null) {
-			return expr.booleanValue.toLowerCase
+		return if (expr.booleanValue !== null) {
+			expr.booleanValue.toLowerCase
 		} else {
-			return expr.integerValue.toString
+			expr.integerValue.toString
 		}
 	}
 	
