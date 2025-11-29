@@ -1,6 +1,5 @@
 package tau.smlab.syntech.generator
 
-import java.util.List
 import org.eclipse.emf.common.util.EList
 import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.generator.AbstractGenerator
@@ -125,7 +124,7 @@ class BPpyGenerator extends AbstractGenerator {
 	
 	def String compile(ValueInRange value) {
 		return switch value {
-			case value.const !== null: "" // TODO TypeConstant
+			case value.const !== null: value.const.name
 			case value.booleanValue !== null: value.booleanValue.toLowerCase
 			case !value.multi: value.^int.toString
 		}
@@ -257,7 +256,7 @@ class BPpyGenerator extends AbstractGenerator {
 		
 		return switch type {
 			case type.name == "boolean" : name + " = BoolSort()"
-			case type.subr !== null : name + " = IntSort()" // TODO add constraint b-threads maybe. otherwise, the constraints are gone. or maybe save them somewhere. or create a class that extends intsort with new lower and upper attributes that can be called later
+			case type.subr !== null : name + " = IntSort()"
 			case type.type !== null : name + " = " + type.type.name
 			case type.const !== null : createEnumType(name, type.const)
 		}
@@ -277,7 +276,7 @@ class BPpyGenerator extends AbstractGenerator {
 		return switch type {
 			case type.name == "boolean" : declareVariable(name, "Bool", null, type.dimensions)
 			case type.subr !== null : addInt(name, type)
-			case type.type !== null : declareVariable(name, "Const", type.type.name, type.dimensions) // TODO upper lower berücksichtigen wenn man instanceof intsort hat
+			case type.type !== null : declareVariable(name, "Const", type.type.name, type.dimensions) // TODO upper lower berücksichtigen wenn man instanceof intsort hat (transitiv möglich, while schleife oder so)
 			case type.const !== null : addEnum(name, type)
 		}	
 	}
@@ -326,14 +325,31 @@ class BPpyGenerator extends AbstractGenerator {
 		return buildString(name, " = ", prefix.toString, type, "(f'", elemName.toString, "'", constAttribute, ")", postfix.toString)
 	}
 	
-	def String addInt(String name, VarType type) '''
+	def String addInt(String name, VarType type) {
+		val from = type.subr.from
+		val to = type.subr.to
+		
+		val lower = switch from {
+			case from.name !== null: from.name.name
+			case from.arithExp !== null: from.arithExp.translateTempExpr
+			default: from.value
+		}
+		
+		val upper = switch to {
+			case to.name !== null: to.name.name
+			case to.arithExp !== null: to.arithExp.translateTempExpr
+			default: to.value
+		}
+		
+		// TODO: wahrscheinlich die b threads irgendwann am Ende hinzufügen oder so, weil stand jetzt geht das mit defines sonst nicht (keine forward declaration)  
+	
+		return '''
 		
 		«declareVariable(name, "Int", null, type.dimensions)»
-		«/* TODO: handle other ways of modeling subranges (e.g. with a Define N := 4) */»
 		@thread
 		def «name»_bounds():
-			lower = «type.subr.from.value»
-			upper = «type.subr.to.value»
+			lower = «lower»
+			upper = «upper»
 			«IF type.dimensions.size == 0»
 			block_condition = Or(«name» < lower, «name» > upper)
 			«ELSE»
@@ -342,7 +358,8 @@ class BPpyGenerator extends AbstractGenerator {
 			«ENDIF»
 			yield sync(block=block_condition)
 		
-	'''
+		'''
+	}
 	
 	def String addEnum(String name, VarType type) '''
 		«createEnumType(name, type.const)»

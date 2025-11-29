@@ -192,7 +192,7 @@ public class BPpyGenerator extends AbstractGenerator {
     boolean _tripleNotEquals = (_const != null);
     if (_tripleNotEquals) {
       _matched=true;
-      _switchResult = "";
+      _switchResult = value.getConst().getName();
     }
     if (!_matched) {
       String _booleanValue = value.getBooleanValue();
@@ -544,12 +544,53 @@ public class BPpyGenerator extends AbstractGenerator {
   }
 
   public String addInt(final String name, final VarType type) {
+    final SizeDefineDecl from = type.getSubr().getFrom();
+    final SizeDefineDecl to = type.getSubr().getTo();
+    Object _switchResult = null;
+    boolean _matched = false;
+    DefineDecl _name = from.getName();
+    boolean _tripleNotEquals = (_name != null);
+    if (_tripleNotEquals) {
+      _matched=true;
+      _switchResult = from.getName().getName();
+    }
+    if (!_matched) {
+      TemporalExpression _arithExp = from.getArithExp();
+      boolean _tripleNotEquals_1 = (_arithExp != null);
+      if (_tripleNotEquals_1) {
+        _matched=true;
+        _switchResult = this.translateTempExpr(from.getArithExp());
+      }
+    }
+    if (!_matched) {
+      _switchResult = Integer.valueOf(from.getValue());
+    }
+    final Object lower = ((Object)_switchResult);
+    Object _switchResult_1 = null;
+    boolean _matched_1 = false;
+    DefineDecl _name_1 = to.getName();
+    boolean _tripleNotEquals_2 = (_name_1 != null);
+    if (_tripleNotEquals_2) {
+      _matched_1=true;
+      _switchResult_1 = to.getName().getName();
+    }
+    if (!_matched_1) {
+      TemporalExpression _arithExp_1 = to.getArithExp();
+      boolean _tripleNotEquals_3 = (_arithExp_1 != null);
+      if (_tripleNotEquals_3) {
+        _matched_1=true;
+        _switchResult_1 = this.translateTempExpr(to.getArithExp());
+      }
+    }
+    if (!_matched_1) {
+      _switchResult_1 = Integer.valueOf(to.getValue());
+    }
+    final Object upper = ((Object)_switchResult_1);
     StringConcatenation _builder = new StringConcatenation();
     _builder.newLine();
     String _declareVariable = this.declareVariable(name, "Int", null, type.getDimensions());
     _builder.append(_declareVariable);
     _builder.newLineIfNotEmpty();
-    _builder.newLine();
     _builder.append("@thread");
     _builder.newLine();
     _builder.append("def ");
@@ -558,13 +599,11 @@ public class BPpyGenerator extends AbstractGenerator {
     _builder.newLineIfNotEmpty();
     _builder.append("\t");
     _builder.append("lower = ");
-    int _value = type.getSubr().getFrom().getValue();
-    _builder.append(_value, "\t");
+    _builder.append(((Object)lower), "\t");
     _builder.newLineIfNotEmpty();
     _builder.append("\t");
     _builder.append("upper = ");
-    int _value_1 = type.getSubr().getTo().getValue();
-    _builder.append(_value_1, "\t");
+    _builder.append(((Object)upper), "\t");
     _builder.newLineIfNotEmpty();
     {
       int _size = type.getDimensions().size();
